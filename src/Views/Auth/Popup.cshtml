@@ -1,0 +1,72 @@
+﻿@using System.Configuration;
+@{
+    Layout = "_Layout.cshtml";
+}
+
+<script type="text/javascript">
+    const handleError = (reason) => {
+        microsoftTeams.authentication.notifyFailure(reason);
+    }
+
+    const handleSuccess = (response) => {
+        microsoftTeams.authentication.notifySuccess({
+            upn: response.account.username,
+            accessToken: response.accessToken,
+            expiresOn: response.expiresOn
+        });
+    }
+
+    const msalConfig = {
+        auth: {
+            clientId: "@ConfigurationManager.AppSettings["TeamsApp.ClientId"]"
+        },
+        cache: {
+            cacheLocation: "localStorage"
+        }
+    };
+    const scopes = ["openid", "profile", "user.read"];
+    const msalApp = new msal.PublicClientApplication(msalConfig);
+
+    microsoftTeams.initialize(() => { 
+        microsoftTeams.getContext((context) => {
+            const upn = context.upn;
+            const request = {
+                scopes: scopes,
+                loginHint: upn,
+                account: msalApp.getAccountByUsername(upn)
+            };
+
+            // Set up the redirect promise
+            msalApp.handleRedirectPromise()
+                .then((response) => {
+                    if (response !== null) {
+                        // Handle a successful redirect login.
+                        handleSuccess(response);
+                    } else {
+                        // Attempt to get a token silently.
+                        // This path will be executed first.
+                        msalApp.acquireTokenSilent(request)
+                            .then((response) => {
+                                if (response && response.accessToken) {
+                                    handleSuccess(response);
+                                } else {
+                                    // This should never happen. If it does, something is very wrong.
+                                    handleError("No token received on silent acquisition.");
+                                }
+                            })
+                            .catch(() => {
+                                // If silent acquisition fails, the token will be acquired via redirect.
+                                // If this is successful, then handleRedirectPromise() will get called again with the response.
+                                return msalApp.acquireTokenRedirect(request)
+                                    .catch((error) => {
+                                        handleError(error);
+                                    });
+                            });
+                    }
+                })
+                .catch((error) => {
+                    handleError(error);
+                });
+        });
+    });
+</script>

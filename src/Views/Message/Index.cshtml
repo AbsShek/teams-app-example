@@ -1,0 +1,39 @@
+﻿<!DOCTYPE html>
+
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <script src="https://unpkg.com/&#64;microsoft/teams-js/dist/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/&#64;microsoft/mgt/dist/bundle/mgt-loader.js"></script>
+    <title></title>
+</head>
+<body>
+    <div style="background-color: lightgrey">
+        <mgt-person person-query="me" view="twoLines"></mgt-person>
+    </div>
+
+    <script>
+            function getCookie(cname) {
+                var name = cname + "=";
+                var decodedCookie = decodeURIComponent(document.cookie);
+                var ca = decodedCookie.split(';');
+                for (var i = 0; i < ca.length; i++) {
+                    var c = ca[i];
+                    while (c.charAt(0) == ' ') {
+                        c = c.substring(1);
+                    }
+                    if (c.indexOf(name) == 0) {
+                        return c.substring(name.length, c.length);
+                    }
+                }
+                return "";
+            }
+
+            mgt.Providers.globalProvider = new mgt.SimpleProvider(async function (scopes) {
+                return getCookie("auth_accesstoken");
+            });
+
+            mgt.Providers.globalProvider.setState(mgt.ProviderState.SignedIn);
+    </script>
+</body>
+</html>

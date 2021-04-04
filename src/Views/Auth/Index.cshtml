@@ -1,0 +1,112 @@
+﻿@using System.Configuration;
+@{
+    Layout = "_Layout.cshtml";
+}
+
+<div style="background-color: lightgrey;">
+    <button id="btnLogin" onclick="login()" style="display: none">Login</button>
+    <div id="divMessage" style="display: none">Click to log in</div>
+</div>
+
+<script type="text/javascript">
+
+    function setCookie(cname, cvalue, expiry) {
+        var d = new Date(expiry);
+        var expires = "expires=" + d.toUTCString();
+        document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+    }
+
+    function getCookie(cname) {
+        var name = cname + "=";
+        var decodedCookie = decodeURIComponent(document.cookie);
+        var ca = decodedCookie.split(';');
+        for (var i = 0; i < ca.length; i++) {
+            var c = ca[i];
+            while (c.charAt(0) == ' ') {
+                c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+
+    function handleAuthSuccess(result) {
+        setCookie("auth_upn", result.upn, result.expiresOn);
+        setCookie("auth_accesstoken", result.accessToken, result.expiresOn);
+
+        var urlParams = new URLSearchParams(window.location.search);
+        microsoftTeams.navigateCrossDomain(window.location.origin + urlParams.get('redirect'));
+    }
+
+    function showLoginAndMessage(reason) {
+        console.log(reason);
+        $("#divMessage").text(reason).css({ display: "" });
+        $("#btnLogin").css({ display: "" });
+    }
+
+    function hideLoginAndMessage() {
+        $("#divMessage").text("").css({ display: "none" });
+        $("#btnLogin").css({ display: "none" });
+    }
+
+    function login() {
+        microsoftTeams.authentication.authenticate({
+            url: window.location.origin + "/auth/popup",
+            width: 600,
+            height: 535,
+            successCallback: function (result) {
+                handleAuthSuccess(result);
+            },
+            failureCallback: function (reason) {
+                showLoginAndMessage(reason);
+            }
+        });
+    }
+
+    const msalConfig = {
+        auth: {
+            clientId: "@ConfigurationManager.AppSettings["TeamsApp.ClientId"]",
+        },
+        cache: {
+            cacheLocation: "localStorage"
+        }
+    };
+    const scopes = ["openid", "profile", "user.read"];
+
+    microsoftTeams.initialize(() => {
+        hideLoginAndMessage();
+
+        const msalApp = new msal.PublicClientApplication(msalConfig);
+
+        microsoftTeams.getContext((context) => {
+            const upn = context.upn;
+            const request = {
+                scopes: scopes,
+                loginHint: upn,
+                account: msalApp.getAccountByUsername(upn)
+            };
+
+            // Attempt to get a token silently.
+            msalApp.acquireTokenSilent(request)
+                .then((response) => {
+                    if (response && response.accessToken) {
+                        handleAuthSuccess({
+                            upn: response.account.username,
+                            accessToken: response.accessToken,
+                            expiresOn: response.expiresOn
+                        });
+                    } else {
+                        // Silent auth failed, use the popup.
+                        login();
+                    }
+                })
+                .catch(() => {
+                    // Silent auth failed, use the popup.
+                    login();
+                });
+        });
+    });
+
+</script>
